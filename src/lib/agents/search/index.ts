@@ -58,6 +58,10 @@ class SearchAgent {
       llm: input.config.llm,
     });
 
+    if (input.config.fileIds.length > 0) {
+      classification.classification.skipSearch = false;
+    }
+
     const widgetPromise = WidgetExecutor.executeAll({
       classification,
       chatHistory: input.chatHistory,
@@ -86,6 +90,8 @@ class SearchAgent {
         followUp: input.followUp,
         classification: classification,
         config: input.config,
+        chatId: input.chatId,
+        messageId: input.messageId,
       });
     }
 

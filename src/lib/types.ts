@@ -81,6 +81,13 @@ export type SearchResultsResearchBlock = {
   reading: Chunk[];
 };
 
+export type SearchErrorResearchBlock = {
+  id: string;
+  type: 'search_error';
+  source: 'web' | 'academic' | 'discussions' | 'uploads';
+  message: string;
+};
+
 export type ReadingResearchBlock = {
   id: string;
   type: 'reading';
@@ -103,6 +110,7 @@ export type ResearchBlockSubStep =
   | ReasoningResearchBlock
   | SearchingResearchBlock
   | SearchResultsResearchBlock
+  | SearchErrorResearchBlock
   | ReadingResearchBlock
   | UploadSearchingResearchBlock
   | UploadSearchResultsResearchBlock;

@@ -24,12 +24,18 @@ class APISearchAgent {
     let searchPromise: Promise<ResearcherOutput> | null = null;
 
     if (!classification.classification.skipSearch) {
+      console.info('api_search: starting researcher', {
+        chatId: input.chatId,
+        messageId: input.messageId,
+      });
       const researcher = new Researcher();
       searchPromise = researcher.research(SessionManager.createSession(), {
         chatHistory: input.chatHistory,
         followUp: input.followUp,
         classification: classification,
         config: input.config,
+        chatId: input.chatId,
+        messageId: input.messageId,
       });
     }
 

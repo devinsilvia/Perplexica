@@ -66,6 +66,8 @@ export type AdditionalConfig = {
   llm: BaseLLM<any>;
   embedding: BaseEmbedding<any>;
   session: SessionManager;
+  chatId?: string;
+  messageId?: string;
 };
 
 export type ResearcherInput = {
@@ -73,6 +75,8 @@ export type ResearcherInput = {
   followUp: string;
   classification: ClassifierOutput;
   config: SearchAgentConfig;
+  chatId: string;
+  messageId: string;
 };
 
 export type ResearcherOutput = {

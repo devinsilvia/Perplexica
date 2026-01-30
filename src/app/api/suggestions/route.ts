@@ -18,12 +18,24 @@ export const POST = async (req: Request) => {
       body.chatModel.key,
     );
 
+    const normalizedHistory = body.chatHistory.map((item: any) => {
+      if (Array.isArray(item)) {
+        const [role, content] = item;
+        return {
+          role: role === 'human' ? 'user' : role,
+          content,
+        };
+      }
+
+      return {
+        role: item.role === 'human' ? 'user' : item.role,
+        content: item.content,
+      };
+    });
+
     const suggestions = await generateSuggestions(
       {
-        chatHistory: body.chatHistory.map(([role, content]) => ({
-          role: role === 'human' ? 'user' : 'assistant',
-          content,
-        })),
+        chatHistory: normalizedHistory,
       },
       llm,
     );

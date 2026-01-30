@@ -1,4 +1,5 @@
 import { Tool, ToolCall } from '@/lib/models/types';
+import { repairJson } from '@toolsycc/json-repair';
 import {
   ActionOutput,
   AdditionalConfig,
@@ -89,9 +90,26 @@ class ActionRegistry {
 
     await Promise.all(
       actions.map(async (actionConfig) => {
+        let normalizedArgs: any = actionConfig.arguments;
+
+        if (typeof normalizedArgs === 'string') {
+          try {
+            normalizedArgs = JSON.parse(
+              repairJson(normalizedArgs, { extractJson: true }) as string,
+            );
+          } catch (error) {
+            console.error('tool_call: invalid arguments payload', {
+              name: actionConfig.name,
+              arguments: actionConfig.arguments,
+              error: String(error),
+            });
+            normalizedArgs = {};
+          }
+        }
+
         const output = await this.execute(
           actionConfig.name,
-          actionConfig.arguments,
+          normalizedArgs,
           additionalConfig,
         );
         results.push(output);

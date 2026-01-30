@@ -106,7 +106,7 @@ const MessageBox = ({
   return (
     <div className="space-y-6">
       <div className={'w-full pt-8 break-words'}>
-        <h2 className="text-black dark:text-white font-medium text-3xl lg:w-9/12">
+        <h2 className="text-black dark:text-white font-medium text-base lg:text-lg lg:w-9/12">
           {section.message.query}
         </h2>
       </div>

@@ -25,19 +25,26 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-      {sources.slice(0, 3).map((source, i) => (
-        <a
-          className="bg-light-100 hover:bg-light-200 dark:bg-dark-100 dark:hover:bg-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium"
-          key={i}
-          href={source.metadata.url}
-          target="_blank"
-        >
+      {sources.slice(0, 3).map((source, i) => {
+        const isUploadedFile = source.metadata.url.includes('file_id://');
+        const fileId =
+          source.metadata.fileId ?? source.metadata.url.replace('file_id://', '');
+        const href = isUploadedFile ? `/api/uploads/${fileId}` : source.metadata.url;
+
+        return (
+          <a
+            className="bg-light-100 hover:bg-light-200 dark:bg-dark-100 dark:hover:bg-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium"
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+          >
           <p className="dark:text-white text-xs overflow-hidden whitespace-nowrap text-ellipsis">
             {source.metadata.title}
           </p>
           <div className="flex flex-row items-center justify-between">
             <div className="flex flex-row items-center space-x-1">
-              {source.metadata.url.includes('file_id://') ? (
+              {isUploadedFile ? (
                 <div className="bg-dark-200 hover:bg-dark-100 transition duration-200 flex items-center justify-center w-6 h-6 rounded-full">
                   <File size={12} className="text-white/70" />
                 </div>
@@ -51,7 +58,7 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                 />
               )}
               <p className="text-xs text-black/50 dark:text-white/50 overflow-hidden whitespace-nowrap text-ellipsis">
-                {source.metadata.url.includes('file_id://')
+                {isUploadedFile
                   ? 'Uploaded File'
                   : source.metadata.url.replace(/.+\/\/|www.|\..+/g, '')}
               </p>
@@ -61,8 +68,9 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
               <span>{i + 1}</span>
             </div>
           </div>
-        </a>
-      ))}
+          </a>
+        );
+      })}
       {sources.length > 3 && (
         <button
           onClick={openModal}
@@ -112,19 +120,29 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                     Sources
                   </DialogTitle>
                   <div className="grid grid-cols-2 gap-2 overflow-auto max-h-[300px] mt-2 pr-2">
-                    {sources.map((source, i) => (
-                      <a
-                        className="bg-light-secondary hover:bg-light-200 dark:bg-dark-secondary dark:hover:bg-dark-200 border border-light-200 dark:border-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium"
-                        key={i}
-                        href={source.metadata.url}
-                        target="_blank"
-                      >
+                    {sources.map((source, i) => {
+                      const isUploadedFile = source.metadata.url.includes('file_id://');
+                      const fileId =
+                        source.metadata.fileId ??
+                        source.metadata.url.replace('file_id://', '');
+                      const href = isUploadedFile
+                        ? `/api/uploads/${fileId}`
+                        : source.metadata.url;
+
+                      return (
+                        <a
+                          className="bg-light-secondary hover:bg-light-200 dark:bg-dark-secondary dark:hover:bg-dark-200 border border-light-200 dark:border-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium"
+                          key={i}
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                         <p className="dark:text-white text-xs overflow-hidden whitespace-nowrap text-ellipsis">
                           {source.metadata.title}
                         </p>
                         <div className="flex flex-row items-center justify-between">
                           <div className="flex flex-row items-center space-x-1">
-                            {source.metadata.url === 'File' ? (
+                            {isUploadedFile ? (
                               <div className="bg-dark-200 hover:bg-dark-100 transition duration-200 flex items-center justify-center w-6 h-6 rounded-full">
                                 <File size={12} className="text-white/70" />
                               </div>
@@ -138,10 +156,12 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                               />
                             )}
                             <p className="text-xs text-black/50 dark:text-white/50 overflow-hidden whitespace-nowrap text-ellipsis">
-                              {source.metadata.url.replace(
-                                /.+\/\/|www.|\..+/g,
-                                '',
-                              )}
+                              {isUploadedFile
+                                ? 'Uploaded File'
+                                : source.metadata.url.replace(
+                                    /.+\/\/|www.|\..+/g,
+                                    '',
+                                  )}
                             </p>
                           </div>
                           <div className="flex flex-row items-center space-x-1 text-black/50 dark:text-white/50 text-xs">
@@ -149,8 +169,9 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                             <span>{i + 1}</span>
                           </div>
                         </div>
-                      </a>
-                    ))}
+                        </a>
+                      );
+                    })}
                   </div>
                 </DialogPanel>
               </TransitionChild>

@@ -2,6 +2,7 @@ import z from 'zod';
 import { ResearchAction } from '../../types';
 import { searchSearxng } from '@/lib/searxng';
 import { Chunk, SearchResultsResearchBlock } from '@/lib/types';
+import { repairJson } from '@toolsycc/json-repair';
 
 const actionSchema = z.object({
   type: z.literal('web_search'),
@@ -9,6 +10,28 @@ const actionSchema = z.object({
     .array(z.string())
     .describe('An array of search queries to perform web searches for.'),
 });
+
+const coerceQueries = (queries: unknown) => {
+  if (Array.isArray(queries)) {
+    return queries;
+  }
+
+  if (typeof queries === 'string') {
+    try {
+      const parsed = JSON.parse(
+        repairJson(queries, { extractJson: true }) as string,
+      );
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      return queries;
+    }
+  }
+
+  return queries;
+};
 
 const speedModePrompt = `
 Use this tool to perform web searches based on the provided queries. This is useful when you need to gather information from the web to answer the user's questions. You can provide up to 3 queries at a time. You will have to use this every single time if this is present and relevant.
@@ -85,7 +108,53 @@ const webSearchAction: ResearchAction<typeof actionSchema> = {
     config.sources.includes('web') &&
     config.classification.classification.skipSearch === false,
   execute: async (input, additionalConfig) => {
-    input.queries = input.queries.slice(0, 3);
+    const rawQueries = input.queries;
+    const coercedQueries = coerceQueries(input.queries);
+
+    if (rawQueries !== coercedQueries && Array.isArray(coercedQueries)) {
+      console.warn('web_search: coerced queries payload', {
+        chatId: additionalConfig.chatId,
+        messageId: additionalConfig.messageId,
+        queries: rawQueries,
+      });
+    }
+
+    if (!Array.isArray(coercedQueries)) {
+      console.error('web_search: invalid queries payload', {
+        chatId: additionalConfig.chatId,
+        messageId: additionalConfig.messageId,
+        queries: coercedQueries,
+      });
+
+      const researchBlock = additionalConfig.session.getBlock(
+        additionalConfig.researchBlockId,
+      );
+
+      if (researchBlock && researchBlock.type === 'research') {
+        researchBlock.data.subSteps.push({
+          id: crypto.randomUUID(),
+          type: 'search_error',
+          source: 'web',
+          message:
+            'Web search failed because the model returned an invalid query list.',
+        });
+
+        additionalConfig.session.updateBlock(additionalConfig.researchBlockId, [
+          {
+            op: 'replace',
+            path: '/data/subSteps',
+            value: researchBlock.data.subSteps,
+          },
+        ]);
+      }
+
+      return {
+        type: 'search_results',
+        results: [],
+      };
+    }
+
+    const queries = coercedQueries.slice(0, 3);
 
     const researchBlock = additionalConfig.session.getBlock(
       additionalConfig.researchBlockId,
@@ -95,7 +164,7 @@ const webSearchAction: ResearchAction<typeof actionSchema> = {
       researchBlock.data.subSteps.push({
         id: crypto.randomUUID(),
         type: 'searching',
-        searching: input.queries,
+        searching: queries,
       });
 
       additionalConfig.session.updateBlock(additionalConfig.researchBlockId, [
@@ -170,7 +239,7 @@ const webSearchAction: ResearchAction<typeof actionSchema> = {
       }
     };
 
-    await Promise.all(input.queries.map(search));
+    await Promise.all(queries.map(search));
 
     return {
       type: 'search_results',

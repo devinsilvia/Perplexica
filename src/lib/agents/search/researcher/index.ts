@@ -6,6 +6,27 @@ import { Message, ReasoningResearchBlock } from '@/lib/types';
 import formatChatHistoryAsString from '@/lib/utils/formatHistory';
 import { ToolCall } from '@/lib/models/types';
 
+const mergeToolCallArguments = (existing: any, incoming: any) => {
+  if (typeof existing === 'string' && typeof incoming === 'string') {
+    if (incoming.startsWith(existing)) {
+      return incoming;
+    }
+
+    return existing + incoming;
+  }
+
+  if (
+    existing &&
+    incoming &&
+    typeof existing === 'object' &&
+    typeof incoming === 'object'
+  ) {
+    return { ...existing, ...incoming };
+  }
+
+  return incoming ?? existing;
+};
+
 class Researcher {
   async research(
     session: SessionManager,
@@ -139,7 +160,10 @@ class Researcher {
             );
 
             if (existingIndex !== -1) {
-              finalToolCalls[existingIndex].arguments = tc.arguments;
+              finalToolCalls[existingIndex].arguments = mergeToolCallArguments(
+                finalToolCalls[existingIndex].arguments,
+                tc.arguments,
+              );
             } else {
               finalToolCalls.push(tc);
             }
@@ -167,6 +191,8 @@ class Researcher {
         session: session,
         researchBlockId: researchBlockId,
         fileIds: input.config.fileIds,
+        chatId: input.chatId,
+        messageId: input.messageId,
       });
 
       actionOutput.push(...actionResults);

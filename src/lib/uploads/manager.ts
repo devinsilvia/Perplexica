@@ -7,7 +7,7 @@ import { PDFParse } from 'pdf-parse';
 import { CanvasFactory } from 'pdf-parse/worker';
 import officeParser from 'officeparser'
 
-const supportedMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'] as const
+const supportedMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/markdown'] as const
 
 type SupportedMimeType = typeof supportedMimeTypes[number];
 
@@ -21,6 +21,11 @@ type RecordedFile = {
     filePath: string;
     contentPath: string;
     uploadedAt: string;
+    contentHash?: string;
+    embeddingModel?: string;
+    chunkSize?: number;
+    chunkOverlap?: number;
+    fileType?: SupportedMimeType;
 }
 
 type FileRes = {
@@ -29,10 +34,19 @@ type FileRes = {
     fileId: string;
 }
 
+const extensionMimeMap: Record<string, SupportedMimeType> = {
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    txt: 'text/plain',
+    md: 'text/markdown',
+};
+
 class UploadManager {
     private embeddingModel: BaseEmbedding<any>;
     static uploadsDir = path.join(process.cwd(), 'data', 'uploads');
     static uploadedFilesRecordPath = path.join(this.uploadsDir, 'uploaded_files.json');
+    static chunkSize = 512;
+    static chunkOverlap = 128;
 
     constructor(private params: UploadManagerParams) {
         this.embeddingModel = params.embeddingModel;
@@ -69,6 +83,25 @@ class UploadManager {
         return recordedFiles.find(f => f.id === fileId) || null;
     }
 
+    private static findCachedFile(params: {
+        contentHash: string;
+        embeddingModel: string;
+        fileType: SupportedMimeType;
+        chunkSize: number;
+        chunkOverlap: number;
+    }): RecordedFile | null {
+        const recordedFiles = this.getRecordedFiles();
+
+        return recordedFiles.find((file) => {
+            return file.contentHash === params.contentHash
+                && file.embeddingModel === params.embeddingModel
+                && file.fileType === params.fileType
+                && file.chunkSize === params.chunkSize
+                && file.chunkOverlap === params.chunkOverlap
+                && fs.existsSync(file.contentPath);
+        }) || null;
+    }
+
     static getFileChunks(fileId: string): { content: string; embedding: number[] }[] {
         try {
             const recordedFile = this.getFile(fileId);
@@ -89,9 +122,10 @@ class UploadManager {
     private async extractContentAndEmbed(filePath: string, fileType: SupportedMimeType): Promise<string> {
         switch (fileType) {
             case 'text/plain':
+            case 'text/markdown':
                 const content = fs.readFileSync(filePath, 'utf-8');
 
-                const splittedText = splitText(content, 512, 128)
+                const splittedText = splitText(content, UploadManager.chunkSize, UploadManager.chunkOverlap)
                 const embeddings = await this.embeddingModel.embedText(splittedText)
 
                 if (embeddings.length !== splittedText.length) {
@@ -122,7 +156,7 @@ class UploadManager {
 
                 const pdfText = await parser.getText().then(res => res.text)
 
-                const pdfSplittedText = splitText(pdfText, 512, 128)
+                const pdfSplittedText = splitText(pdfText, UploadManager.chunkSize, UploadManager.chunkOverlap)
                 const pdfEmbeddings = await this.embeddingModel.embedText(pdfSplittedText)
 
                 if (pdfEmbeddings.length !== pdfSplittedText.length) {
@@ -148,7 +182,7 @@ class UploadManager {
 
                 const docText = await officeParser.parseOfficeAsync(docBuffer)
 
-                const docSplittedText = splitText(docText, 512, 128)
+                const docSplittedText = splitText(docText, UploadManager.chunkSize, UploadManager.chunkOverlap)
                 const docEmbeddings = await this.embeddingModel.embedText(docSplittedText)
 
                 if (docEmbeddings.length !== docSplittedText.length) {
@@ -174,32 +208,69 @@ class UploadManager {
         }
     }
 
+    private getEmbeddingCacheKey(): string {
+        return this.embeddingModel.getCacheKey();
+    }
+
     async processFiles(files: File[]): Promise<FileRes[]> {
         const processedFiles: FileRes[] = [];
 
         await Promise.all(files.map(async (file) => {
-            if (!(supportedMimeTypes as unknown as string[]).includes(file.type)) {
+            const fileExtension = file.name.split('.').pop()?.toLowerCase();
+            const inferredType = fileExtension ? extensionMimeMap[fileExtension] : undefined;
+            const fileType =
+                (supportedMimeTypes as unknown as string[]).includes(file.type)
+                    ? (file.type as SupportedMimeType)
+                    : file.type === 'application/octet-stream' && inferredType
+                      ? inferredType
+                      : null;
+
+            if (!fileType) {
                 throw new Error(`File type ${file.type} not supported`);
             }
 
             const fileId = crypto.randomBytes(16).toString('hex');
 
-            const fileExtension = file.name.split('.').pop();
             const fileName = `${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
             const filePath = path.join(UploadManager.uploadsDir, fileName);
 
             const buffer = Buffer.from(await file.arrayBuffer())
+            const contentHash = crypto.createHash('sha256').update(buffer).digest('hex');
+            const embeddingModelKey = this.getEmbeddingCacheKey();
+            const cachedFile = UploadManager.findCachedFile({
+                contentHash,
+                embeddingModel: embeddingModelKey,
+                fileType: fileType,
+                chunkSize: UploadManager.chunkSize,
+                chunkOverlap: UploadManager.chunkOverlap,
+            });
 
-            fs.writeFileSync(filePath, buffer);
+            let contentFilePath: string;
+            let finalFilePath = filePath;
 
-            const contentFilePath = await this.extractContentAndEmbed(filePath, file.type as SupportedMimeType);
+            if (cachedFile) {
+                contentFilePath = cachedFile.contentPath;
+                if (cachedFile.filePath && fs.existsSync(cachedFile.filePath)) {
+                    finalFilePath = cachedFile.filePath;
+                } else {
+                    fs.writeFileSync(finalFilePath, buffer);
+                }
+            } else {
+                fs.writeFileSync(finalFilePath, buffer);
+                contentFilePath = await this.extractContentAndEmbed(finalFilePath, fileType);
+            }
 
             const fileRecord: RecordedFile = {
                 id: fileId,
                 name: file.name,
-                filePath: filePath,
+                filePath: finalFilePath,
                 contentPath: contentFilePath,
                 uploadedAt: new Date().toISOString(),
+                contentHash,
+                embeddingModel: embeddingModelKey,
+                chunkSize: UploadManager.chunkSize,
+                chunkOverlap: UploadManager.chunkOverlap,
+                fileType: fileType,
             }
 
             UploadManager.addNewRecordedFile(fileRecord);

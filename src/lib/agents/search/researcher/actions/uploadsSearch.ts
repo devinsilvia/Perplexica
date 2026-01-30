@@ -1,6 +1,7 @@
 import z from 'zod';
 import { ResearchAction } from '../../types';
 import UploadStore from '@/lib/uploads/store';
+import { repairJson } from '@toolsycc/json-repair';
 
 const schema = z.object({
   queries: z
@@ -9,6 +10,28 @@ const schema = z.object({
       'A list of queries to search in user uploaded files. Can be a maximum of 3 queries.',
     ),
 });
+
+const coerceQueries = (queries: unknown) => {
+  if (Array.isArray(queries)) {
+    return queries;
+  }
+
+  if (typeof queries === 'string') {
+    try {
+      const parsed = JSON.parse(
+        repairJson(queries, { extractJson: true }) as string,
+      );
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      return queries;
+    }
+  }
+
+  return queries;
+};
 
 const uploadsSearchAction: ResearchAction<typeof schema> = {
   name: 'uploads_search',
@@ -27,7 +50,53 @@ const uploadsSearchAction: ResearchAction<typeof schema> = {
   Never use this tool to search the web or for information that is not contained within the user's uploaded files.
   `,
   execute: async (input, additionalConfig) => {
-    input.queries = input.queries.slice(0, 3);
+    const rawQueries = input.queries;
+    const coercedQueries = coerceQueries(input.queries);
+
+    if (rawQueries !== coercedQueries && Array.isArray(coercedQueries)) {
+      console.warn('uploads_search: coerced queries payload', {
+        chatId: additionalConfig.chatId,
+        messageId: additionalConfig.messageId,
+        queries: rawQueries,
+      });
+    }
+
+    if (!Array.isArray(coercedQueries)) {
+      console.error('uploads_search: invalid queries payload', {
+        chatId: additionalConfig.chatId,
+        messageId: additionalConfig.messageId,
+        queries: coercedQueries,
+      });
+
+      const researchBlock = additionalConfig.session.getBlock(
+        additionalConfig.researchBlockId,
+      );
+
+      if (researchBlock && researchBlock.type === 'research') {
+        researchBlock.data.subSteps.push({
+          id: crypto.randomUUID(),
+          type: 'search_error',
+          source: 'uploads',
+          message:
+            'Upload search failed because the model returned an invalid query list.',
+        });
+
+        additionalConfig.session.updateBlock(additionalConfig.researchBlockId, [
+          {
+            op: 'replace',
+            path: '/data/subSteps',
+            value: researchBlock.data.subSteps,
+          },
+        ]);
+      }
+
+      return {
+        type: 'search_results',
+        results: [],
+      };
+    }
+
+    const queries = coercedQueries.slice(0, 3);
 
     const researchBlock = additionalConfig.session.getBlock(
       additionalConfig.researchBlockId,
@@ -37,7 +106,7 @@ const uploadsSearchAction: ResearchAction<typeof schema> = {
       researchBlock.data.subSteps.push({
         id: crypto.randomUUID(),
         type: 'upload_searching',
-        queries: input.queries,
+        queries: queries,
       });
 
       additionalConfig.session.updateBlock(additionalConfig.researchBlockId, [
@@ -54,7 +123,7 @@ const uploadsSearchAction: ResearchAction<typeof schema> = {
       fileIds: additionalConfig.fileIds,
     });
 
-    const results = await uploadStore.query(input.queries, 10);
+    const results = await uploadStore.query(queries, 10);
 
     const seenIds = new Map<string, number>();
 

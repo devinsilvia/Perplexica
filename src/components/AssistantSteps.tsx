@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   BookSearch,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -25,6 +26,8 @@ const getStepIcon = (step: ResearchBlockSubStep) => {
     return <FileText className="w-4 h-4" />;
   } else if (step.type === 'reading') {
     return <BookSearch className="w-4 h-4" />;
+  } else if (step.type === 'search_error') {
+    return <AlertTriangle className="w-4 h-4" />;
   }
 
   return null;
@@ -37,15 +40,21 @@ const getStepTitle = (
   if (step.type === 'reasoning') {
     return isStreaming && !step.reasoning ? 'Thinking...' : 'Thinking';
   } else if (step.type === 'searching') {
-    return `Searching ${step.searching.length} ${step.searching.length === 1 ? 'query' : 'queries'}`;
+    const count = Array.isArray(step.searching) ? step.searching.length : 0;
+    return `Searching ${count} ${count === 1 ? 'query' : 'queries'}`;
   } else if (step.type === 'search_results') {
-    return `Found ${step.reading.length} ${step.reading.length === 1 ? 'result' : 'results'}`;
+    const count = Array.isArray(step.reading) ? step.reading.length : 0;
+    return `Found ${count} ${count === 1 ? 'result' : 'results'}`;
   } else if (step.type === 'reading') {
-    return `Reading ${step.reading.length} ${step.reading.length === 1 ? 'source' : 'sources'}`;
+    const count = Array.isArray(step.reading) ? step.reading.length : 0;
+    return `Reading ${count} ${count === 1 ? 'source' : 'sources'}`;
   } else if (step.type === 'upload_searching') {
     return 'Scanning your uploaded documents';
   } else if (step.type === 'upload_search_results') {
-    return `Reading ${step.results.length} ${step.results.length === 1 ? 'document' : 'documents'}`;
+    const count = Array.isArray(step.results) ? step.results.length : 0;
+    return `Reading ${count} ${count === 1 ? 'document' : 'documents'}`;
+  } else if (step.type === 'search_error') {
+    return `Search failed (${step.source})`;
   }
 
   return 'Processing';
@@ -160,6 +169,7 @@ const AssistantSteps = ({
                       )}
 
                       {step.type === 'searching' &&
+                        Array.isArray(step.searching) &&
                         step.searching.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {step.searching.map((query, idx) => (
@@ -175,6 +185,7 @@ const AssistantSteps = ({
 
                       {(step.type === 'search_results' ||
                         step.type === 'reading') &&
+                        Array.isArray(step.reading) &&
                         step.reading.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {step.reading.slice(0, 4).map((result, idx) => {
@@ -210,6 +221,7 @@ const AssistantSteps = ({
                         )}
 
                       {step.type === 'upload_searching' &&
+                        Array.isArray(step.queries) &&
                         step.queries.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {step.queries.map((query, idx) => (
@@ -224,6 +236,7 @@ const AssistantSteps = ({
                         )}
 
                       {step.type === 'upload_search_results' &&
+                        Array.isArray(step.results) &&
                         step.results.length > 0 && (
                           <div className="mt-1.5 grid gap-3 lg:grid-cols-3">
                             {step.results.slice(0, 4).map((result, idx) => {
@@ -251,6 +264,12 @@ const AssistantSteps = ({
                             })}
                           </div>
                         )}
+
+                      {step.type === 'search_error' && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                          {step.message}
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 );

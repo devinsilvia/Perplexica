@@ -2,10 +2,33 @@ import z from 'zod';
 import { ResearchAction } from '../../types';
 import { Chunk, SearchResultsResearchBlock } from '@/lib/types';
 import { searchSearxng } from '@/lib/searxng';
+import { repairJson } from '@toolsycc/json-repair';
 
 const schema = z.object({
   queries: z.array(z.string()).describe('List of social search queries'),
 });
+
+const coerceQueries = (queries: unknown) => {
+  if (Array.isArray(queries)) {
+    return queries;
+  }
+
+  if (typeof queries === 'string') {
+    try {
+      const parsed = JSON.parse(
+        repairJson(queries, { extractJson: true }) as string,
+      );
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      return queries;
+    }
+  }
+
+  return queries;
+};
 
 const socialSearchDescription = `
 Use this tool to perform social media searches for relevant posts, discussions, and trends related to the user's query. Provide a list of concise search queries that will help gather comprehensive social media information on the topic at hand.
@@ -30,7 +53,53 @@ const socialSearchAction: ResearchAction<typeof schema> = {
     config.classification.classification.skipSearch === false &&
     config.classification.classification.discussionSearch === true,
   execute: async (input, additionalConfig) => {
-    input.queries = input.queries.slice(0, 3);
+    const rawQueries = input.queries;
+    const coercedQueries = coerceQueries(input.queries);
+
+    if (rawQueries !== coercedQueries && Array.isArray(coercedQueries)) {
+      console.warn('social_search: coerced queries payload', {
+        chatId: additionalConfig.chatId,
+        messageId: additionalConfig.messageId,
+        queries: rawQueries,
+      });
+    }
+
+    if (!Array.isArray(coercedQueries)) {
+      console.error('social_search: invalid queries payload', {
+        chatId: additionalConfig.chatId,
+        messageId: additionalConfig.messageId,
+        queries: coercedQueries,
+      });
+
+      const researchBlock = additionalConfig.session.getBlock(
+        additionalConfig.researchBlockId,
+      );
+
+      if (researchBlock && researchBlock.type === 'research') {
+        researchBlock.data.subSteps.push({
+          id: crypto.randomUUID(),
+          type: 'search_error',
+          source: 'discussions',
+          message:
+            'Discussion search failed because the model returned an invalid query list.',
+        });
+
+        additionalConfig.session.updateBlock(additionalConfig.researchBlockId, [
+          {
+            op: 'replace',
+            path: '/data/subSteps',
+            value: researchBlock.data.subSteps,
+          },
+        ]);
+      }
+
+      return {
+        type: 'search_results',
+        results: [],
+      };
+    }
+
+    const queries = coercedQueries.slice(0, 3);
 
     const researchBlock = additionalConfig.session.getBlock(
       additionalConfig.researchBlockId,
@@ -40,7 +109,7 @@ const socialSearchAction: ResearchAction<typeof schema> = {
       researchBlock.data.subSteps.push({
         type: 'searching',
         id: crypto.randomUUID(),
-        searching: input.queries,
+        searching: queries,
       });
 
       additionalConfig.session.updateBlock(additionalConfig.researchBlockId, [
@@ -117,7 +186,7 @@ const socialSearchAction: ResearchAction<typeof schema> = {
       }
     };
 
-    await Promise.all(input.queries.map(search));
+    await Promise.all(queries.map(search));
 
     return {
       type: 'search_results',
