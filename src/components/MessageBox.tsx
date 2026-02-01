@@ -16,8 +16,6 @@ import Markdown, { MarkdownToJSX, RuleType } from 'markdown-to-jsx';
 import Copy from './MessageActions/Copy';
 import Rewrite from './MessageActions/Rewrite';
 import MessageSources from './MessageSources';
-import SearchImages from './SearchImages';
-import SearchVideos from './SearchVideos';
 import { useSpeech } from 'react-text-to-speech';
 import ThinkBox from './ThinkBox';
 import { useChat, Section } from '@/lib/hooks/useChat';
@@ -268,20 +266,6 @@ const MessageBox = ({
           </div>
         </div>
 
-        {hasContent && (
-          <div className="lg:sticky lg:top-20 flex flex-col items-center space-y-3 w-full lg:w-3/12 z-30 h-full pb-4">
-            <SearchImages
-              query={section.message.query}
-              chatHistory={chatHistory}
-              messageId={section.message.messageId}
-            />
-            <SearchVideos
-              chatHistory={chatHistory}
-              query={section.message.query}
-              messageId={section.message.messageId}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

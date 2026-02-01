@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import {
   BookOpenText,
   Home,
-  Search,
   SquarePen,
   Settings,
   Plus,
@@ -36,12 +35,6 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
       href: '/',
       active: segments.length === 0 || segments.includes('c'),
       label: 'Home',
-    },
-    {
-      icon: Search,
-      href: '/discover',
-      active: segments.includes('discover'),
-      label: 'Discover',
     },
     {
       icon: BookOpenText,

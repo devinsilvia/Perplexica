@@ -65,8 +65,9 @@ class ConfigManager {
         key: 'autoMediaSearch',
         type: 'switch',
         required: false,
-        description: 'Automatically search for relevant images and videos.',
-        default: true,
+        description:
+          'Automatically search for relevant images and videos. Disabled by default in this local setup and currently hard-disabled even if toggled on.',
+        default: false,
         scope: 'client',
       },
       {
@@ -83,8 +84,9 @@ class ConfigManager {
         key: 'showNewsWidget',
         type: 'switch',
         required: false,
-        description: 'Display the recent news card on the home screen.',
-        default: true,
+        description:
+          'Display the recent news card on the home screen. Disabled by default in this local setup and currently hard-disabled even if toggled on.',
+        default: false,
         scope: 'client',
       },
     ],

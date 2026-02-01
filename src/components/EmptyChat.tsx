@@ -6,25 +6,16 @@ import EmptyChatMessageInput from './EmptyChatMessageInput';
 import { File } from './ChatWindow';
 import Link from 'next/link';
 import WeatherWidget from './WeatherWidget';
-import NewsArticleWidget from './NewsArticleWidget';
 import SettingsButtonMobile from '@/components/Settings/SettingsButtonMobile';
-import {
-  getShowNewsWidget,
-  getShowWeatherWidget,
-} from '@/lib/config/clientRegistry';
+import { getShowWeatherWidget } from '@/lib/config/clientRegistry';
 
 const EmptyChat = () => {
   const [showWeather, setShowWeather] = useState(() =>
     typeof window !== 'undefined' ? getShowWeatherWidget() : true,
   );
-  const [showNews, setShowNews] = useState(() =>
-    typeof window !== 'undefined' ? getShowNewsWidget() : true,
-  );
-
   useEffect(() => {
     const updateWidgetVisibility = () => {
       setShowWeather(getShowWeatherWidget());
-      setShowNews(getShowNewsWidget());
     };
 
     updateWidgetVisibility();
@@ -53,16 +44,11 @@ const EmptyChat = () => {
           </h2>
           <EmptyChatMessageInput />
         </div>
-        {(showWeather || showNews) && (
+        {showWeather && (
           <div className="flex flex-col w-full gap-4 mt-2 sm:flex-row sm:justify-center">
             {showWeather && (
               <div className="flex-1 w-full">
                 <WeatherWidget />
-              </div>
-            )}
-            {showNews && (
-              <div className="flex-1 w-full">
-                <NewsArticleWidget />
               </div>
             )}
           </div>
