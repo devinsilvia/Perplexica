@@ -112,9 +112,13 @@ const checkConfig = async (
       );
     }
 
+    const hasSavedChatSelection =
+      !!chatModelProviderId && !!chatModelKey;
+    const savedChatProvider = providers.find(
+      (p) => p.id === chatModelProviderId,
+    );
     const chatModelProvider =
-      providers.find((p) => p.id === chatModelProviderId) ??
-      providers.find((p) => p.chatModels.length > 0);
+      savedChatProvider ?? providers.find((p) => p.chatModels.length > 0);
 
     if (!chatModelProvider) {
       throw new Error(
@@ -124,13 +128,19 @@ const checkConfig = async (
 
     chatModelProviderId = chatModelProvider.id;
 
-    const chatModel =
-      chatModelProvider.chatModels.find((m) => m.key === chatModelKey) ??
-      chatModelProvider.chatModels[0];
+    const savedChatModel = chatModelProvider.chatModels.find(
+      (m) => m.key === chatModelKey,
+    );
+    const chatModel = savedChatModel ?? chatModelProvider.chatModels[0];
     chatModelKey = chatModel.key;
 
+    const hasSavedEmbeddingSelection =
+      !!embeddingModelProviderId && !!embeddingModelKey;
+    const savedEmbeddingProvider = providers.find(
+      (p) => p.id === embeddingModelProviderId,
+    );
     const embeddingModelProvider =
-      providers.find((p) => p.id === embeddingModelProviderId) ??
+      savedEmbeddingProvider ??
       providers.find((p) => p.embeddingModels.length > 0);
 
     if (!embeddingModelProvider) {
@@ -141,16 +151,29 @@ const checkConfig = async (
 
     embeddingModelProviderId = embeddingModelProvider.id;
 
+    const savedEmbeddingModel = embeddingModelProvider.embeddingModels.find(
+      (m) => m.key === embeddingModelKey,
+    );
     const embeddingModel =
-      embeddingModelProvider.embeddingModels.find(
-        (m) => m.key === embeddingModelKey,
-      ) ?? embeddingModelProvider.embeddingModels[0];
+      savedEmbeddingModel ?? embeddingModelProvider.embeddingModels[0];
     embeddingModelKey = embeddingModel.key;
 
-    localStorage.setItem('chatModelKey', chatModelKey);
-    localStorage.setItem('chatModelProviderId', chatModelProviderId);
-    localStorage.setItem('embeddingModelKey', embeddingModelKey);
-    localStorage.setItem('embeddingModelProviderId', embeddingModelProviderId);
+    // Only persist defaults if we don't have a saved selection or the provider is reachable.
+    // This avoids overwriting selections during temporary provider outages while still fixing stale model keys.
+    const shouldPersistChatSelection =
+      !hasSavedChatSelection || !!savedChatProvider;
+    const shouldPersistEmbeddingSelection =
+      !hasSavedEmbeddingSelection || !!savedEmbeddingProvider;
+
+    if (shouldPersistChatSelection) {
+      localStorage.setItem('chatModelKey', chatModelKey);
+      localStorage.setItem('chatModelProviderId', chatModelProviderId);
+    }
+
+    if (shouldPersistEmbeddingSelection) {
+      localStorage.setItem('embeddingModelKey', embeddingModelKey);
+      localStorage.setItem('embeddingModelProviderId', embeddingModelProviderId);
+    }
 
     setChatModelProvider({
       key: chatModelKey,

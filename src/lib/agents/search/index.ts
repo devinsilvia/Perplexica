@@ -58,6 +58,10 @@ class SearchAgent {
       llm: input.config.llm,
     });
 
+    if (input.config.sources.length === 0 && input.config.fileIds.length === 0) {
+      classification.classification.skipSearch = true;
+    }
+
     if (input.config.fileIds.length > 0) {
       classification.classification.skipSearch = false;
     }
